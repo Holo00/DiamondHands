@@ -1,0 +1,11 @@
+Network name
+Base Sepolia Testnet
+Network URL
+https://base-sepolia.g.alchemy.com/v2/Your-API-Key
+Chain ID
+84532
+Currency symbol
+ETH
+
+
+https://www.alchemy.com/chain-connect/chain/base-sepolia-testnet
