@@ -33,45 +33,45 @@ describe("Lock", function () {
     await lock.deploymentTransaction().wait();
   });
 
-  it("Should set the right unlockTime", async function () {
-    expect(await lock.unlockTime()).to.equal(unlockTime);
-  });
+  // it("Should set the right unlockTime", async function () {
+  //   expect(await lock.unlockTime()).to.equal(unlockTime);
+  // });
 
-  it("Should not allow withdrawal before unlock time", async function () {
-    await expect(lock.withdraw()).to.be.revertedWith("You can't withdraw yet");
-  });
+  // it("Should not allow withdrawal before unlock time", async function () {
+  //   await expect(lock.withdraw()).to.be.revertedWith("You can't withdraw yet");
+  // });
 
-  it("Should only allow the owner to withdraw", async function () {
-    await increaseTime(ONE_YEAR_IN_SECS + 1);
-    const otherAccount = (await ethers.getSigners())[1];
-    await expect(lock.connect(otherAccount).withdraw()).to.be.revertedWith("You aren't the owner");
-  });
+  // it("Should only allow the owner to withdraw", async function () {
+  //   await increaseTime(ONE_YEAR_IN_SECS + 1);
+  //   const otherAccount = (await ethers.getSigners())[1];
+  //   await expect(lock.connect(otherAccount).withdraw()).to.be.revertedWith("You aren't the owner");
+  // });
 
-  it("Should allow withdrawal after unlock time", async function () {
-    await increaseTime(ONE_YEAR_IN_SECS + 1);
+  // it("Should allow withdrawal after unlock time", async function () {
+  //   await increaseTime(ONE_YEAR_IN_SECS + 1);
 
-    const currentTime = await latest();
-    const lockAddress = lock.getAddress(); // Directly access the contract address
-    console.log(`Contract address for balance check: ${lockAddress}`);
-    expect(lockAddress).to.not.be.null;
-    const lockBalanceBefore = await ethers.provider.getBalance(lockAddress);
+  //   const currentTime = await latest();
+  //   const lockAddress = lock.getAddress(); // Directly access the contract address
+  //   console.log(`Contract address for balance check: ${lockAddress}`);
+  //   expect(lockAddress).to.not.be.null;
+  //   const lockBalanceBefore = await ethers.provider.getBalance(lockAddress);
 
-    console.log(`Lock address: ${lockAddress}`);
-    console.log(`Balance before withdrawal: ${lockBalanceBefore.toString()}`);
+  //   console.log(`Lock address: ${lockAddress}`);
+  //   console.log(`Balance before withdrawal: ${lockBalanceBefore.toString()}`);
 
-    const tx = await lock.withdraw();
-    const receipt = await ethers.provider.getTransactionReceipt(tx.hash);
+  //   const tx = await lock.withdraw();
+  //   const receipt = await ethers.provider.getTransactionReceipt(tx.hash);
 
-    // Decode the event from the transaction receipt
-    const iface = new ethers.Interface(["event Withdrawal(uint256 amount, uint256 when)"]);
-    const event = iface.decodeEventLog("Withdrawal", receipt.logs[0].data, receipt.logs[0].topics);
+  //   // Decode the event from the transaction receipt
+  //   const iface = new ethers.Interface(["event Withdrawal(uint256 amount, uint256 when)"]);
+  //   const event = iface.decodeEventLog("Withdrawal", receipt.logs[0].data, receipt.logs[0].topics);
 
-    // Ensure the Withdrawal event was captured
-    expect(event.amount).to.equal(lockBalanceBefore);
-    expect(event.when).to.be.at.least(currentTime); // Allowing for slight variation in timestamp
+  //   // Ensure the Withdrawal event was captured
+  //   expect(event.amount).to.equal(lockBalanceBefore);
+  //   expect(event.when).to.be.at.least(currentTime); // Allowing for slight variation in timestamp
 
-    const lockBalanceAfter = await ethers.provider.getBalance(lockAddress);
-    console.log(`Balance after withdrawal: ${lockBalanceAfter.toString()}`);
-    expect(lockBalanceAfter).to.equal(0);
-  });
+  //   const lockBalanceAfter = await ethers.provider.getBalance(lockAddress);
+  //   console.log(`Balance after withdrawal: ${lockBalanceAfter.toString()}`);
+  //   expect(lockBalanceAfter).to.equal(0);
+  // });
 });

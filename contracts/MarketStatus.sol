@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts502/access/Ownable.sol";
 
 struct LiquidityPoolToMCAP {
     uint32 ratio;
@@ -33,11 +32,11 @@ contract MarketStatus is IMarketStatus, Ownable {
 
     }
 
-    function getMarketStatus(address _address) external view returns (Status memory status) {
+    function getMarketStatus(address _address) external override view returns (Status memory status) {
         return marketStatus[_address];
     }
 
-    function getPoolToCap(address _address) external view returns (LiquidityPoolToMCAP memory ratio) {
+    function getPoolToCap(address _address) external override view returns (LiquidityPoolToMCAP memory ratio) {
         return poolToCap[_address];
     }
 

@@ -3,7 +3,20 @@ require("dotenv").config();
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
-  solidity: "0.8.24",
+  //solidity: "0.8.24",
+  solidity: {
+    compilers: [
+      {
+        version: "0.8.24",
+      },
+      {
+        version: "0.8.0",
+      },
+      {
+        version: "0.7.6",
+      },
+    ],
+  },
   networks: {
     hardhat: {
       chainId: 84532, // default chain ID for Hardhat Network
