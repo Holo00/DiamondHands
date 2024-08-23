@@ -1,20 +1,15 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.7.6;
+pragma abicoder v2;
+
 
 import "./MarketStatus.sol";
+import "./Interfaces/IDiamondHelper.sol";
 
-interface IDiamondHelper {
-    function applyWhaleHandicap(address _holderBalance, uint256 _totalSupply) external view returns(uint256);
-    function getContractAgeAirdropDivider(uint256 _creationTime) external view returns(uint256);
-    function getBuyerFee(uint256 _amount, Status calldata _status) external view returns(uint256);
-    function getSellerFee(uint256 _amount, Status calldata _status) external view returns(uint256);
-    function getDipPoints(Status calldata _status) external view returns(uint256);
-    function getAirDropSize(uint256 _accountSize, Status calldata _status) external view returns(uint256);
-}
 
-contract DiamondHelper {
+contract DiamondHelper is IDiamondHelper {
 
-    function getAirDropSize(uint256 _accountSize, Status calldata _status) external pure returns(uint256){
+    function getAirDropSize(uint256 _accountSize, Status calldata _status) external pure override returns(uint256){
         if(_status.status > 2){
             return _accountSize / 100 * 5;
         }
@@ -23,7 +18,7 @@ contract DiamondHelper {
         }
     }
 
-    function applyWhaleHandicap(uint256 _holderBalance, uint256 _totalSupply) external pure returns(uint256){
+    function applyWhaleHandicap(uint256 _holderBalance, uint256 _totalSupply) external pure override returns(uint256){
         uint256 divider = 1;
 
         if(_holderBalance > _totalSupply / 100){
@@ -41,7 +36,7 @@ contract DiamondHelper {
         return divider;
     }
 
-    function getContractAgeAirdropDivider(uint256 _creationTime) external view returns(uint256){
+    function getContractAgeAirdropDivider(uint256 _creationTime) external view override returns(uint256){
         uint256 createdLength = block.timestamp - _creationTime;
         if(createdLength > 90 days){
             return 1;
@@ -56,7 +51,7 @@ contract DiamondHelper {
         return 4;
     }
 
-    function getBuyerFee(uint256 _amount, Status calldata _status) external pure returns(uint256){
+    function getBuyerFee(uint256 _amount, Status calldata _status) external pure override returns(uint256){
         if(_status.status == 1){
             return _amount / 1000 * 40;
         }
@@ -70,7 +65,7 @@ contract DiamondHelper {
         return 0;
     }
 
-    function getSellerFee(uint256 _amount, Status calldata _status) external pure returns(uint256){
+    function getSellerFee(uint256 _amount, Status calldata _status) external pure override returns(uint256){
         if(_status.status == 1){
             return _amount / 1000 * 5;
         }
@@ -87,7 +82,7 @@ contract DiamondHelper {
         return 0;
     }
 
-    function getDipPoints(Status calldata _status) external pure returns(uint256){
+    function getDipPoints(Status calldata _status) external pure override returns(uint256){
         uint256 dipPoints = 100;
 
         if(_status.drawDown1 >= 10){

@@ -7,7 +7,7 @@ describe("MarketStatus", function () {
     before(async function () {
         [owner, addr1] = await ethers.getSigners();
         MarketStatus = await ethers.getContractFactory("MarketStatus");
-        marketStatus = await MarketStatus.deploy(owner.address);
+        marketStatus = await MarketStatus.deploy();
         await marketStatus.deploymentTransaction().wait();
     });
   

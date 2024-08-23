@@ -1,30 +1,17 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.7.6;
+pragma abicoder v2;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "./MarketStatus.sol";
 import "./DiamondCaller.sol";
-import "./Diamond.sol";
+import "./Interfaces/IDiamondMiner.sol";
+import "./Interfaces/IMarketStatus.sol";
+import "./Structs/Status.sol";
+import "./Structs/DiamondStructs.sol";
+import "./Structs/DiamondMinerStructs.sol";
 
-struct LotteryParticipant{
-    address participant;
-    uint256 tickets;
-}
-
-struct WinningResult{
-    bool winning;
-    uint256 winner;
-}
-
-
-interface IDiamondMiner{
-    function balanceOf(address _account) external view returns (uint256);
-}
-
-contract DiamondMiner is ERC20, DiamondCaller {
-    using SafeMath for uint256;
+contract DiamondMiner is ERC20, DiamondCaller, IDiamondMiner {
 
     IMarketStatus marketStatusContract;
     address public wethAddress;
@@ -33,7 +20,7 @@ contract DiamondMiner is ERC20, DiamondCaller {
     uint256 public totalTickets;
     uint256 ethMaxBalance;
 
-    constructor(address _owner, address _marketStatusAddress) ERC20("DiamondMiner", "DIAMM") DiamondCaller(_owner) 
+    constructor(address _marketStatusAddress) ERC20("DiamondMiner", "DIAMM") DiamondCaller() 
     {
         marketStatusContract = IMarketStatus(_marketStatusAddress);
         totalTickets = 0;
@@ -45,7 +32,7 @@ contract DiamondMiner is ERC20, DiamondCaller {
 
     function refundDiamondWithETH() external onlyOwner {
         if (address(this).balance >= ethMaxBalance) {
-            uint256 toTransfer = address(this).balance.sub(ethMaxBalance);
+            uint256 toTransfer = address(this).balance - ethMaxBalance;
             (bool success, ) = diamontContractAddress.call{value: toTransfer}("");
             require(success, "Gas reimbursement failed");
         }
@@ -54,22 +41,22 @@ contract DiamondMiner is ERC20, DiamondCaller {
     function executeLottery(uint256 _seed) external onlyOwner {
         uint256 jackpotTotal = diamondContract.balanceOf(address(this));
         if(jackpotTotal > 0){
-            uint256 burnAmount = jackpotTotal.div(20); // 5% burn
+            uint256 burnAmount = jackpotTotal / 20; // 5% burn
             diamondContract.burn(address(this), burnAmount);
 
-            uint256 distributeAmount = jackpotTotal.div(20); // 5% distribute
+            uint256 distributeAmount = jackpotTotal / 20; // 5% distribute
             diamondContract.transferFromLottery(address(this), distributeAmount);
 
             WinningResult memory dailyWinner = getWinner(1, totalTickets, _seed);
-            WinningResult memory jackpotWinner = getWinner(1, totalTickets.mul(20), _seed);
+            WinningResult memory jackpotWinner = getWinner(1, totalTickets * 20, _seed);
 
             if(dailyWinner.winning){
-                uint256 dailyPrize = jackpotTotal.div(10); // 10% daily prize
+                uint256 dailyPrize = jackpotTotal / 10; // 10% daily prize
                 diamondContract.transferFromLottery(nextLotteryParticipants[dailyWinner.winner].participant, dailyPrize);
             }
 
             if(jackpotWinner.winning){
-                uint256 jackpotPrize = jackpotTotal.mul(8).div(10); // 80% jackpot prize
+                uint256 jackpotPrize = jackpotTotal * 8 / 10; // 80% jackpot prize
                 diamondContract.transferFromLottery(nextLotteryParticipants[jackpotWinner.winner].participant, jackpotPrize);
             }
         }
@@ -78,45 +65,45 @@ contract DiamondMiner is ERC20, DiamondCaller {
         delete nextLotteryParticipants;
     }
 
-    function getWinner(uint256 _min, uint256 _max, uint256 _seed) internal returns(WinningResult memory){
+    function getWinner(uint256 _min, uint256 _max, uint256 _seed) internal view returns(WinningResult memory){
         uint256 ticketWinnerNumber = getRandomNumber(_min, _max, _seed);
         uint256 currentTicketNumberMax = 0;
         for(uint256 i = 0; i < nextLotteryParticipants.length; i++){
-            if(ticketWinnerNumber <  currentTicketNumberMax.add(nextLotteryParticipants[i].tickets)){
+            if(ticketWinnerNumber <  currentTicketNumberMax + nextLotteryParticipants[i].tickets){
                 return WinningResult(true ,i);
             }
-            currentTicketNumberMax = currentTicketNumberMax.add(nextLotteryParticipants[i].tickets);
+            currentTicketNumberMax = currentTicketNumberMax + nextLotteryParticipants[i].tickets;
         }
 
         return WinningResult(false, 0);
     }
 
-    function payForLottery(uint256 _amount) external {
+    function payForLottery(uint256 _amount) external payable {
         uint256 ethFee = getETHFee();
         require(msg.value >= ethFee, "Insufficient ETH sent");
         payable(address(this)).transfer(ethFee);
         diamondContract.transferToLottery(msg.sender, address(this), _amount);
         nextLotteryParticipants.push(LotteryParticipant(msg.sender, _amount));
-        totalTickets = totalTickets.add(_amount);
+        totalTickets += _amount;
         _mint(msg.sender, _amount);
     }
 
-    function burnDiamonds(uint256 _amount) external {
+    function burnDiamonds(uint256 _amount) external payable {
         uint256 ethFee = getETHFee();
         require(msg.value >= ethFee, "Insufficient ETH sent");
         payable(address(this)).transfer(ethFee);
         diamondContract.burn(msg.sender, _amount);
-        _mint(msg.sender, _amount.mul(5));
+        _mint(msg.sender, _amount * 5);
     }
 
     function getETHFee() internal view returns(uint256){
         Status memory s_weth = marketStatusContract.getMarketStatus(wethAddress);
-        uint256 ethFee = (10 ** 18).div(s_weth.price);
+        uint256 ethFee = (10 ** 18) / s_weth.price;
         return ethFee;
     }
 
     function getRandomNumber(uint256 _min, uint256 _max, uint256 _seed) internal view returns (uint256) {
-        require(max > min, "max must be greater than min");
+        require(_max > _min, "max must be greater than min");
 
         // Get a pseudo-random value
         uint256 randomValue = uint256(keccak256(abi.encodePacked(
@@ -127,7 +114,7 @@ contract DiamondMiner is ERC20, DiamondCaller {
         )));
 
         // Compute the random number in the range [min, max]
-        uint256 randomInRange = (randomValue % (max - min + 1)) + min;
+        uint256 randomInRange = (randomValue % (_max - _min + 1)) + _min;
 
         return randomInRange;
     }

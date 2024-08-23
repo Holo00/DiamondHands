@@ -1,38 +1,21 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.7.6;
+pragma abicoder v2;
 
-import "@openzeppelin/contracts502/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "./Interfaces/IMarketStatus.sol";
+import "./Structs/Status.sol";
+import "./Structs/LiquidityPoolToMCAP.sol";
 
-struct LiquidityPoolToMCAP {
-    uint32 ratio;
-    address[] liquidityProvidersAddresses;
-    uint256 timeStamp;
-}
-
-struct Status{
-    uint32 status;
-    uint256 price;
-    uint32 drawDown1;
-    uint32 drawDown7;
-    uint32 drawDown30;
-    uint256 timeStamp;
-}
-
-interface IMarketStatus {
-    function getMarketStatus(address _address) external view returns (Status memory status);
-    function getPoolToCap(address _address) external view returns (LiquidityPoolToMCAP memory ratio);
-}
 
 contract MarketStatus is IMarketStatus, Ownable {
     mapping(address => Status) public marketStatus;
     mapping(address => LiquidityPoolToMCAP) public poolToCap;
 
-    constructor(address owner) Ownable(owner) 
-    {
-
-    }
+    constructor() Ownable() {}
 
     function getMarketStatus(address _address) external override view returns (Status memory status) {
+        require(marketStatus[_address].price > 0, 'Status not defined');
         return marketStatus[_address];
     }
 

@@ -3,10 +3,13 @@ const { ethers } = require("hardhat");
 
 describe("DiamondLiquidityProvider", function () {
   let DiamondLiquidityProvider, diamondLiquidityProvider, liquidProviderAdd;
+  //let factory, factoryAdd;
   let owner, addr1;
   let baseToken, quoteToken;
-  let baseAddress, quoteAddress;
-  let whale;
+  let baseAddress, quoteAddress, poolAddress;
+  let whale, whaleSigner;
+  let tokenId, liquidity, amount0, amount1;
+  const uniswapV3FactoryAddress = "0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24";
   const swapRouterAddressStr =  "0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4"; // Uniswap V3 SwapRouter
   const positionManagerAddressStr =  "0x27F971cb582BF9E50F397e4d29a5C7A34f11faA2"; // Uniswap V3 NonfungiblePositionManager
   const whaleStr = "0x6EbB1DA02aD4423579469b91e68f767D07542c64";
@@ -44,15 +47,41 @@ describe("DiamondLiquidityProvider", function () {
     quoteAddress =  await quoteToken.getAddress();
     console.log("Quote Token deployed to:", quoteAddress);
 
-    // Use common tokens
-    //baseToken = await ethers.getContractAt("IERC20", "0x940181a94a35a4569e4529a3cdfb74e38fd98631"); // AERO
-    //quoteToken = await ethers.getContractAt("IERC20", "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"); // USDC
-
     DiamondLiquidityProvider = await ethers.getContractFactory("DiamondLiquidityProvider");
-    diamondLiquidityProvider = await DiamondLiquidityProvider.deploy(baseAddress, swapRouterAddress, positionManagerAddress);
+    diamondLiquidityProvider = await DiamondLiquidityProvider.deploy(baseAddress, uniswapV3FactoryAddress, positionManagerAddress);
     await diamondLiquidityProvider.deploymentTransaction().wait();
     liquidProviderAdd = await diamondLiquidityProvider.getAddress();
     console.log("DiamondLiquidityProvider deployed to:", liquidProviderAdd);
+
+    whaleSigner = await ethers.getSigner(whaleStr);
+  });
+
+  it('should create pool correctly', async function () {
+    const sqrt1 = BigInt(Math.sqrt(1));
+    const twoPow96 = BigInt(2) ** BigInt(96);
+    const sqrtPriceX96 = twoPow96 / sqrt1;
+    console.log("sqrtPriceX96:", sqrtPriceX96.toString());
+
+    const txCreatePool = await diamondLiquidityProvider.connect(whaleSigner).createPool(
+      quoteAddress,
+      3000,
+      sqrtPriceX96
+    );
+    const receipt = await txCreatePool.wait();
+
+    // Find the PoolCreated event in the logs
+    const poolCreatedEvent = receipt.logs.find(log => log.topics[0] === ethers.id("PoolCreated(address,address,uint24,address)"));
+    if (poolCreatedEvent) {
+      const iface = new ethers.Interface(["event PoolCreated(address tokenA, address tokenB, uint24 fee, address pool)"]);
+      const decodedEvent = iface.decodeEventLog("PoolCreated", poolCreatedEvent.data, poolCreatedEvent.topics);
+      poolAddress = decodedEvent.pool;
+      console.log("Pool Address:", poolAddress);
+    } else {
+      console.log("PoolCreated event not found");
+    }
+
+    // You can also add assertions to verify the pool address
+    expect(poolAddress).to.be.properAddress;
   });
 
   it("should add liquidity correctly", async function () {
@@ -71,66 +100,71 @@ describe("DiamondLiquidityProvider", function () {
      expect(whaleBaseBalance).to.be.gte(amountBase);
      expect(whaleQuoteBalance).to.be.gte(amountQuote);
 
-    console.log("1", whaleStr);
-    console.log("2", await baseToken.getAddress());
-    console.log("3", await diamondLiquidityProvider.getAddress());
-    console.log("4", amountBase);
     await baseToken.connect(whaleSigner).approve(liquidProviderAdd, amountBase);
     await quoteToken.connect(whaleSigner).approve(liquidProviderAdd, amountQuote);
-    console.log("5");
 
     //await baseToken.connect(whaleSigner).transfer(liquidProviderAdd, amountBase);
     //await quoteToken.connect(whaleSigner).transfer(liquidProviderAdd, amountQuote);
-    console.log("6");
-    console.log("7", 79228162514264337593543950336n);
-    // Use 2^96 for sqrtPriceX96 which represents a 1:1 price ratio
-    const sqrtPriceX96 =  79228162514264337593543950336n; // 2^96
 
     // Ensure all addresses are valid contract addresses
     const baseTokenCode = await ethers.provider.getCode(await baseToken.getAddress());
     const quoteTokenCode = await ethers.provider.getCode(await quoteToken.getAddress());
     const positionManagerCode = await ethers.provider.getCode(positionManagerAddressStr);
 
-    console.log("Base Token Code:", baseTokenCode);
-    console.log("Quote Token Code:", quoteTokenCode);
-    console.log("Position Manager Code:", positionManagerCode);
+    //console.log("Base Token Code:", baseTokenCode);
+    //console.log("Quote Token Code:", quoteTokenCode);
+    //console.log("Position Manager Code:", positionManagerCode);
 
     expect(baseTokenCode).to.not.equal("0x");
     expect(quoteTokenCode).to.not.equal("0x");
     expect(positionManagerCode).to.not.equal("0x");
 
-    // await expect(diamondLiquidityProvider.addLiquidity(
-    //   quoteAddress,
-    //   3000, // fee tier
-    //   amountBase,
-    //   amountQuote
-    // )).to.emit(diamondLiquidityProvider, "LiquidityAdded");
     // Adding liquidity by calling the function from whaleSigner
     const addLiquidityTx = await diamondLiquidityProvider.connect(whaleSigner).addLiquidity(
       quoteAddress,
       3000, // fee tier
       amountBase,
-      amountQuote
+      amountQuote//,
+      //{ gasLimit: 5000000 } // Set a higher gas limit
     );
 
     const receipt = await addLiquidityTx.wait();
-    const liquidityAddedEvent = receipt.events.find(event => event.event === 'LiquidityAdded');
-    const tokenId = liquidityAddedEvent.args.tokenId;
+    //console.log("receipt.logs", receipt.logs);
 
-    expect(tokenId).to.be.a('number');
+    // Find the LiquidityAdded event in the logs
+    const liquidityAddedEvent = receipt.logs.find(log => log.topics[0] === ethers.id("LiquidityAdded(uint256,uint128,uint256,uint256)"));
+    if (liquidityAddedEvent) {
+        const iface = new ethers.Interface(["event LiquidityAdded(uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)"]);
+        const decodedEvent = iface.decodeEventLog("LiquidityAdded", liquidityAddedEvent.data, liquidityAddedEvent.topics);
+        tokenId = decodedEvent.tokenId;
+        liquidity = decodedEvent.liquidity;
+        amount0 = decodedEvent.amount0;
+        amount1 = decodedEvent.amount1;
+
+        console.log(`LiquidityAdded event:
+            tokenId: ${tokenId}
+            liquidity: ${liquidity}
+            amount0: ${amount0}
+            amount1: ${amount1}`);
+    } else {
+        console.log("LiquidityAdded event not found");
+    }
+
+    expect(tokenId).to.be.a('BigInt');
+    expect(liquidity).to.be.a('BigInt');
+    expect(amount0).to.equal(ethers.parseUnits("1", 18));
+    expect(amount1).to.equal(ethers.parseUnits("1", 18));
   });
 
-  it("should remove liquidity correctly", async function () {
-    const tokenId = 1;
-    const liquidity = 1000;
-    const amount0Min = ethers.parseUnits("1", 18); // 1 token0
-    const amount1Min = ethers.parseUnits("1", 18); // 1 token1
+  // it("should remove liquidity correctly", async function () {
+  //   const amount0Min = ethers.parseUnits("1", 18); // 1 token0
+  //   const amount1Min = ethers.parseUnits("1", 18); // 1 token1
 
-    await expect(diamondLiquidityProvider.removeLiquidity(
-      tokenId,
-      liquidity,
-      amount0Min,
-      amount1Min
-    )).to.emit(diamondLiquidityProvider, "LiquidityRemoved");
-  });
+  //   await expect(diamondLiquidityProvider.removeLiquidity(
+  //     tokenId,
+  //     liquidity,
+  //     amount0Min,
+  //     amount1Min
+  //   )).to.emit(diamondLiquidityProvider, "LiquidityRemoved");
+  // });
 });

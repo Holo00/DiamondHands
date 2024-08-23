@@ -1,20 +1,17 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.7.6;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "./Diamond.sol";
+import "./Interfaces/IDiamond.sol";
 
 abstract contract DiamondCaller is Ownable {
     IDiamond diamondContract;
     address diamontContractAddress;
 
-    constructor(address _owner) Ownable(_owner) 
-    {
-        
-    }
+    constructor() Ownable() {}
 
     modifier onlyDiamond() {
-        require(msg.sender == diamondContract, "Only the Diamond contract can call this function");
+        require(msg.sender == diamontContractAddress, "Only the Diamond contract can call this function");
         _;
     }
 

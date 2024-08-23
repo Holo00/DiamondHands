@@ -1,54 +1,44 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.7.6;
+pragma abicoder v2;
 
 import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
-import "@uniswap/v3-periphery/contracts/interfaces/IWETH9.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol";
 import "./DiamondCaller.sol";
-import "./Diamond.sol";
+import "./Interfaces/ISwaperHelper.sol";
 
 
-interface ISwaperHelper{
-    function setRouterForBuyBacks(address _router, address _wethAddress, uint256 _poolFee) external;
-    function sellForETH(uint256 _tokenAmount) external returns(uint256);
-    function sellForETHInETH(uint256 _ethAmount) external returns(uint256);
-    function buyBack(uint256 _AmountInWETH) external returns(uint256);
-}
-
-contract SwapHelper is DiamondCaller {
+contract SwapHelper is DiamondCaller, ISwaperHelper {
     ISwapRouter public swapRouter;
-    IWETH9 public wethContract;
+    IERC20 public wethContract;
 
     address public wethAddress;
+    uint24 public poolFee;
 
-    uint256 public poolFee;
+    constructor() DiamondCaller() {}
 
-    constructor(address _owner) DiamondCaller(_owner) 
-    {
-
-    }
-
-    function setRouterForBuyBacks(address _router, address _wethAddress, uint256 _poolFee) external onlyOwner{
+    function setRouterForBuyBacks(address _router, address _wethAddress, uint24 _poolFee) external override onlyOwner{
         swapRouter = ISwapRouter(_router);
         wethAddress = _wethAddress;
         poolFee = _poolFee;
-        wethContract = IWETH9(_wethAddress);
+        wethContract = IERC20(_wethAddress);
     }
 
     // Function to sell tokens for ETH
-    function sellForETHInETH(uint256 _ethAmount,  uint256 _maxTokenAmount) external onlyDiamond returns(uint256){
+    function sellForETHInETH(uint256 _ethAmount,  uint256 _maxTokenAmount) external override onlyDiamond returns(uint256){
         // Approve the router to spend the token
         TransferHelper.safeApprove(diamontContractAddress, address(swapRouter), _maxTokenAmount);
 
         // Set up the parameters for the swap
-        ISwapRouter.ExactInputSingleParams memory params =
-            ISwapRouter.ExactInputSingleParams({
+        ISwapRouter.ExactOutputSingleParams memory params =
+            ISwapRouter.ExactOutputSingleParams({
                 tokenIn: diamontContractAddress,
                 tokenOut: wethAddress,
                 fee: poolFee,
                 recipient: diamontContractAddress, // Swap WETH to the contract
                 deadline: block.timestamp + 15,
-                amountOut: _ethAmountOut,
+                amountOut: _ethAmount,
                 amountInMaximum: _maxTokenAmount,
                 sqrtPriceLimitX96: 0
             });
@@ -62,7 +52,7 @@ contract SwapHelper is DiamondCaller {
     }
 
     // Function to sell a specified amount of tokens for ETH
-    function sellForETH(uint256 _tokenAmount) external onlyDiamond returns(uint256){
+    function sellForETH(uint256 _tokenAmount) external override onlyDiamond returns(uint256){
         // Approve the router to spend the token
         TransferHelper.safeApprove(diamontContractAddress, address(swapRouter), _tokenAmount);
 
@@ -85,7 +75,7 @@ contract SwapHelper is DiamondCaller {
         return amountOut;
     }
 
-    function buyBack(uint256 _AmountInWETH) external onlyDiamond returns(uint256) {
+    function buyBack(uint256 _AmountInWETH) external override onlyDiamond returns(uint256) {
         // Approve the router to spend WETH
         TransferHelper.safeApprove(wethAddress, address(swapRouter), _AmountInWETH);
         uint256 amountOut = 0;

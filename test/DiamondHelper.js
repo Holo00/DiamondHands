@@ -3,6 +3,7 @@ const { ethers } = require("hardhat");
 
 describe("DiamondHelper", function () {
     let DiamondHelper, diamondHelper;
+    let owner;
   
     before(async function () {
         DiamondHelper = await ethers.getContractFactory("DiamondHelper");

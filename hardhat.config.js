@@ -6,21 +6,34 @@ module.exports = {
   //solidity: "0.8.24",
   solidity: {
     compilers: [
-      {
-        version: "0.8.24",
-      },
-      {
-        version: "0.8.0",
-      },
+      // {
+      //   version: "0.8.24",
+      // },
+      // {
+      //   version: "0.8.0",
+      // },
       {
         version: "0.7.6",
       },
     ],
   },
+  mocha: {
+    reporter: 'spec',
+    reporterOptions: {
+      // you can add other options here
+    }
+  },
   networks: {
+    // hardhat: {
+    //   chainId: 84532, // default chain ID for Hardhat Network
+    //   // You can add other configurations here if needed
+    // },
     hardhat: {
-      chainId: 84532, // default chain ID for Hardhat Network
-      // You can add other configurations here if needed
+      forking: {
+        url: process.env.ALCHEMY_SEPOLIA_RPC_URL,
+        blockNumber: 13320464
+      },
+      
     },
     // Mainnet configuration
     "base-mainnet": {
@@ -36,7 +49,7 @@ module.exports = {
     },
     // Sepolia testnet configuration
     "base-mainnet-alchemy": {
-      url: process.env.ALCHEMY_SEPOLIA_RPC_URL,
+      url: process.env.ALCHEMY_MAINNET_RPC_URL,
       accounts: process.env.ALCHEMY_RPC_PRIVATE_KEY ? [process.env.ALCHEMY_RPC_PRIVATE_KEY] : [],
       gasPrice: 1000000000, // 1 gwei
     },
