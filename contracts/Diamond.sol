@@ -13,8 +13,9 @@ import "./Interfaces/IDiamondMiner.sol";
 import "./Interfaces/IDiamondHelper.sol";
 import "./Interfaces/IDiamondTransferType.sol";
 import "./Interfaces/IWETH.sol";
+import "./WETHUtils.sol";
 
-
+//contract Diamond is ERC20, WETHUtils {
 contract Diamond is ERC20, Ownable {
     IMarketStatus public marketStatusContract;
     ISwaperHelper public swapHelperContract;
@@ -42,24 +43,26 @@ contract Diamond is ERC20, Ownable {
     mapping(address => bool) public isIndexedHolderIndex;
 
     event DiamondTransfer(TransferType indexed transferType, address sender, address indexed from, address indexed to, uint256 value);
+    event HolderAdded(uint256 hIndex, address add);
+    event TransactionAdd(uint256 hIndex, uint256 qty, uint256 dipP);
+    event TransactionRemove(uint256 hIndex, uint256 qty, bool remove);
 
-
-    constructor(address _marketStatusAddress, address _wethAddress) ERC20("Diamond", "DIAM") Ownable()
+    //constructor(address _wethAddress) ERC20("Diamond", "DIAM") WETHUtils()
+    constructor(address _wethAddress) ERC20("Diamond", "DIAM") Ownable()
     {
         creationTime = block.timestamp;
-        marketStatusContract = IMarketStatus(_marketStatusAddress);
         wethContract = IWETH(_wethAddress);
         _mint(msg.sender, TEAM_ALLOCATION);
         _mint(address(this), pumpingIncentivesSupply);
-
-        //uint256 sup = 10_000_000 * 10**18;
-        //_mint(msg.sender, sup * 10 / 100);
-        //_mint(address(this),sup * 90 / 100);
     }
 
     modifier onlyDiamondMiner() {
-        require(msg.sender == address(diamondMinerContract), "Only the DiamondMiner contract can call this function");
+        require(msg.sender == address(diamondMinerContract), "ODM"); //Only the DiamondMiner contract can call this function
         _;
+    }
+
+    function setMarketStatusContract(address _Contract) external onlyOwner {
+        marketStatusContract = IMarketStatus(_Contract);
     }
 
     function setDiamondMinerContract(address _Contract) external onlyOwner {
@@ -87,19 +90,19 @@ contract Diamond is ERC20, Ownable {
         uint256 gasCost = gasUsed * tx.gasprice;
         if (address(this).balance >= gasCost) {
             (bool success, ) = msg.sender.call{value: gasCost}("");
-            require(success, "Gas reimbursement failed");
+            require(success, "GRF"); // Gas reimbursement failed
         }
     }
 
     function moveToAirdropAccounts() external onlyOwner{
-        require(block.timestamp - lastDistributionTS > 82800, "Too soon for Airdrop");
+        require(block.timestamp - lastDistributionTS > 82800, "TSA"); //Too soon for Airdrop
         uint256 gasStart = gasleft();
 
         poolRatio = marketStatusContract.getPoolToCap(address(this));
         status = marketStatusContract.getMarketStatus(address(this));
 
         if(status.status != 0){
-            buyETHForMinimumBalanceRequired();
+            //buyETHForMinimumBalanceRequired();
 
             if(status.status <= 2){
                 //if the market is bullish an amount of the token is sold for ETH
@@ -149,20 +152,8 @@ contract Diamond is ERC20, Ownable {
     }
 
     function moveToLiquidityProvidersAccount() internal{
-        uint256 incentives = 0;
-
-        if(poolRatio.ratio > 10){
-            incentives = pumpingIncentivesSupply / 100;
-        }
-        else if(poolRatio.ratio > 5){
-            incentives = pumpingIncentivesSupply / 1000 * 5;
-        }
-        else{
-            incentives = pumpingIncentivesSupply / 1000 * 3;
-        }
-
+        uint256 incentives = diamondHelperContract.getLiquidityPIncentives(pumpingIncentivesSupply, poolRatio);
         incentives = incentives / diamondHelperContract.getContractAgeAirdropDivider(creationTime);
-
         pumpingIncentivesSupply -= incentives;
         liquidityProvidersAirdropAccount += incentives;
     }
@@ -195,7 +186,7 @@ contract Diamond is ERC20, Ownable {
     }
 
     function airDropToHolders(uint256[] calldata _recipientsIndex, uint256 _adjustedTotalPoints, bool _isLast) external onlyOwner {
-        require(_adjustedTotalPoints <= totalPoints, "Adjusted total points cannot be higher than total points");
+        require(_adjustedTotalPoints <= totalPoints, "ATPHTP"); //Adjusted total points cannot be higher than total points
         uint256 gasStart = gasleft();
         uint256 quantity = diamondHelperContract.getAirDropSize(holdersAirdropAccount, status);
 
@@ -232,16 +223,18 @@ contract Diamond is ERC20, Ownable {
 
 
     function _transfer(address _sender, address _recipient, uint256 _amount) internal override {
-        require(address(marketStatusContract) != address(0), "MarketStatus contract not initialized");
-        require(address(diamondHelperContract) != address(0), "DiamondHelperContract contract not initialized");
-        require(address(diamondTransferTypeContract) != address(0), "DiamondTransferTypeContract contract not initialized");
+        require(address(marketStatusContract) != address(0) && address(diamondHelperContract) != address(0) && 
+            address(diamondTransferTypeContract) != address(0), "CNI"); //Contract not initialized
+        require(balanceOf(_sender) >= _amount, "IB"); //Balance does not cover amount + fees
 
         TransferType tType = diamondTransferTypeContract.functionCheckType(msg.sender, _sender, _recipient);
+        //super._transfer(_sender,_recipient, _amount);
 
         if(tType == TransferType.AddingLiquidity || tType == TransferType.RemovingLiquidity){
             super._transfer(_sender,_recipient, _amount);
         }
         else if(tType == TransferType.BuyFromLiquidityPool){
+
             //recipient is a buyer, buyer pays fee
             status = marketStatusContract.getMarketStatus(address(this));
             uint256 buyerFee = diamondHelperContract.getBuyerFee(_amount, status);
@@ -259,13 +252,13 @@ contract Diamond is ERC20, Ownable {
             //sender is a seller, seller pays fee
             status = marketStatusContract.getMarketStatus(address(this));
             uint256 sellerFee = diamondHelperContract.getSellerFee(_amount, status);
-            uint256 amountAfterFee = _amount - sellerFee;
+            require(balanceOf(_sender) >= _amount + sellerFee, "BNCAF"); //Balance does not cover amount + fees
 
             if(sellerFee > 0){
-                super._transfer(_sender, address(this), sellerFee);
+               super._transfer(_sender, address(this), sellerFee);
             }
 
-            super._transfer(_sender, _recipient, amountAfterFee);
+            super._transfer(_sender, _recipient, _amount);
             uint256 seller = findOrAddHolder(_sender);
             removeHolderTxs(seller, _amount, true);
         }
@@ -292,21 +285,27 @@ contract Diamond is ERC20, Ownable {
     }
 
     function findOrAddHolder(address _address) internal returns(uint256){
-        if(isIndexedHolderIndex[_address]){
-            return holderIndex[_address];
+        if(isIndexedHolderIndex[_address] == false){
+            holdersinfo.push();
+            holdersinfo[holdersinfo.length - 1].isDefined = true;
+            holdersinfo[holdersinfo.length - 1].add = _address;
+            holderIndex[_address] = holdersinfo.length - 1;
+            isIndexedHolderIndex[_address] = true;
+            emit HolderAdded(holdersinfo.length - 1, _address);
         }
-
-        HolderInfo storage info = holdersinfo[holdersinfo.length];
-        info.isDefined = true;
-        holderIndex[_address] = holdersinfo.length - 1;
+        
         return holderIndex[_address];
     }
 
     function addHolderTx(uint256 _index, uint256 _amount) internal {
-        Transaction memory txs = Transaction(_amount, diamondHelperContract.getDipPoints(status), block.timestamp);
-        holdersinfo[_index].txs.push(txs);
-        holdersinfo[_index].dipPoints = txs.dipPointsPerUnit * txs.qty;
-        totalPoints +=  txs.dipPointsPerUnit * txs.qty;
+        holdersinfo[_index].txs.push();
+        uint256 dipoints = diamondHelperContract.getDipPoints(status);
+        holdersinfo[_index].txs[holdersinfo[_index].txs.length - 1].qty = _amount;
+        holdersinfo[_index].txs[holdersinfo[_index].txs.length - 1].dipPointsPerUnit = dipoints;
+        holdersinfo[_index].txs[holdersinfo[_index].txs.length - 1].ts = block.timestamp;
+        holdersinfo[_index].dipPoints += dipoints * _amount;
+        totalPoints +=  dipoints * _amount;
+        emit TransactionAdd(_index, _amount, dipoints);
     }
 
     function removeHolderTxs(uint256 _index, uint256 _amount, bool removeDipPoints) internal {
@@ -333,6 +332,8 @@ contract Diamond is ERC20, Ownable {
                     }
                 }
             }
+                
+            emit TransactionRemove(_index, _amount, removeDipPoints);
         }
     }
 

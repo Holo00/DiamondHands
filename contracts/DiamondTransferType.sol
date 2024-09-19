@@ -11,9 +11,9 @@ import "./Interfaces/IDiamondTransferType.sol";
 
 contract DiamondTransferType is DiamondCaller, IDiamondTransferType {
 
-    mapping(address => bool) uni_supportedPoolAddresses;
-    mapping(address => bool) uni_supportedPositionManagerAddresses;
-    mapping(address => bool) uni_supportedSwapRouterAddresses;
+    mapping(address => bool) public uni_supportedPoolAddresses;
+    mapping(address => bool) public uni_supportedPositionManagerAddresses;
+    mapping(address => bool) public uni_supportedSwapRouterAddresses;
 
     constructor() DiamondCaller() 
     {
@@ -56,7 +56,8 @@ contract DiamondTransferType is DiamondCaller, IDiamondTransferType {
         }
     }
 
-    function functionCheckType(address _txSender, address _sender, address _recipient) external override view onlyDiamond returns(TransferType){
+    function functionCheckType(address _txSender, address _sender, address _recipient) external override view returns(TransferType){
+    //function functionCheckType(address _txSender, address _sender, address _recipient) external override view onlyDiamond returns(TransferType){
         TransferType transferType = TransferType.RegularTransfer;
 
         if(uni_supportedPositionManagerAddresses[_txSender] == true || uni_supportedSwapRouterAddresses[_txSender] == true){
@@ -82,6 +83,10 @@ contract DiamondTransferType is DiamondCaller, IDiamondTransferType {
                     transferType = TransferType.BuyFromLiquidityPool;
                 }
             }
+        }
+        else if (uni_supportedPoolAddresses[_txSender] == true && uni_supportedPoolAddresses[_sender]){
+            //Buying from a liquidity pool
+            transferType = TransferType.BuyFromLiquidityPool;
         }
 
         return transferType;

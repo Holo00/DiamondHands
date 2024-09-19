@@ -9,6 +9,22 @@ import "./Interfaces/IDiamondHelper.sol";
 
 contract DiamondHelper is IDiamondHelper {
 
+    function getLiquidityPIncentives(uint256 pumpingIncentivesSupply, LiquidityPoolToMCAP calldata poolRatio) external pure override returns(uint256){
+        uint256 incentives = 0;
+
+        if(poolRatio.ratio > 10){
+            incentives = pumpingIncentivesSupply / 100;
+        }
+        else if(poolRatio.ratio > 5){
+            incentives = pumpingIncentivesSupply / 1000 * 5;
+        }
+        else{
+            incentives = pumpingIncentivesSupply / 1000 * 3;
+        }
+
+        return incentives;
+    }
+
     function getAirDropSize(uint256 _accountSize, Status calldata _status) external pure override returns(uint256){
         if(_status.status > 2){
             return _accountSize / 100 * 5;

@@ -9,6 +9,7 @@ import "./Structs/LiquidityPoolToMCAP.sol";
 
 
 contract MarketStatus is IMarketStatus, Ownable {
+
     mapping(address => Status) public marketStatus;
     mapping(address => LiquidityPoolToMCAP) public poolToCap;
 

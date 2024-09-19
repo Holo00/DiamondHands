@@ -16,6 +16,12 @@ module.exports = {
         version: "0.7.6",
       },
     ],
+    settings: {
+      optimizer: {
+        enabled: true,
+        runs: 2000 // Adjust runs for your use case (higher = more optimization)
+      }
+    }
   },
   mocha: {
     reporter: 'spec',
@@ -31,7 +37,10 @@ module.exports = {
     hardhat: {
       forking: {
         url: process.env.ALCHEMY_SEPOLIA_RPC_URL,
-        blockNumber: 13320464
+        //blockNumber: 13320464,
+        blockNumber: 13954416
+        // url: process.env.ALCHEMY_MAINNET_RPC_URL,
+        // blockNumber: 18802822,
       },
       
     },
