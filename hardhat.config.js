@@ -19,7 +19,7 @@ module.exports = {
     settings: {
       optimizer: {
         enabled: true,
-        runs: 2000 // Adjust runs for your use case (higher = more optimization)
+        runs: 500 // Adjust runs for your use case (higher = more optimization)
       }
     }
   },

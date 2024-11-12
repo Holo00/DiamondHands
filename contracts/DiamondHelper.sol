@@ -5,11 +5,22 @@ pragma abicoder v2;
 
 import "./MarketStatus.sol";
 import "./Interfaces/IDiamondHelper.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 
-contract DiamondHelper is IDiamondHelper {
+contract DiamondHelper is IDiamondHelper, Ownable {
+    IMarketStatus public msC;
 
-    function getLiquidityPIncentives(uint256 pumpingIncentivesSupply, LiquidityPoolToMCAP calldata poolRatio) external pure override returns(uint256){
+    constructor() Ownable()
+    {
+    }
+
+    function setMarketStatusC(address _C) external onlyOwner {
+        msC = IMarketStatus(_C);
+    }
+
+    function getLiquidityPIncentives(uint256 pumpingIncentivesSupply, address diamondAdd) external view override returns(uint256){
+        LiquidityPoolToMCAP memory poolRatio = msC.getPoolToCap(diamondAdd);
         uint256 incentives = 0;
 
         if(poolRatio.ratio > 10){
@@ -24,6 +35,23 @@ contract DiamondHelper is IDiamondHelper {
 
         return incentives;
     }
+
+    // function getLiquidityPIncentives(uint256 pumpingIncentivesSupply, LiquidityPoolToMCAP calldata poolRatio) external pure override returns(uint256){
+    //     uint256 incentives = 0;
+
+    //     if(poolRatio.ratio > 10){
+    //         incentives = pumpingIncentivesSupply / 100;
+    //     }
+    //     else if(poolRatio.ratio > 5){
+    //         incentives = pumpingIncentivesSupply / 1000 * 5;
+    //     }
+    //     else{
+    //         incentives = pumpingIncentivesSupply / 1000 * 3;
+    //     }
+
+    //     return incentives;
+    // }
+
 
     function getAirDropSize(uint256 _accountSize, Status calldata _status) external pure override returns(uint256){
         if(_status.status > 2){
@@ -52,7 +80,7 @@ contract DiamondHelper is IDiamondHelper {
         return divider;
     }
 
-    function getContractAgeAirdropDivider(uint256 _creationTime) external view override returns(uint256){
+    function getCAADivider(uint256 _creationTime) external view override returns(uint256){
         uint256 createdLength = block.timestamp - _creationTime;
         if(createdLength > 90 days){
             return 1;

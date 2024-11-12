@@ -12,73 +12,68 @@ import "./Interfaces/ISwaperHelper.sol";
 import "./Interfaces/IDiamondMiner.sol";
 import "./Interfaces/IDiamondHelper.sol";
 import "./Interfaces/IDiamondTransferType.sol";
+import "./Interfaces/IDiamondHolders.sol";
 import "./Interfaces/IWETH.sol";
-import "./WETHUtils.sol";
 
-//contract Diamond is ERC20, WETHUtils {
+
 contract Diamond is ERC20, Ownable {
-    IMarketStatus public marketStatusContract;
-    ISwaperHelper public swapHelperContract;
-    IDiamondMiner public diamondMinerContract;
-    IDiamondHelper public diamondHelperContract;
-    IDiamondTransferType public diamondTransferTypeContract;
-    IWETH wethContract;
+    IMarketStatus public msC;
+    ISwaperHelper public shC;
+    IDiamondMiner public dmC;
+    IDiamondHelper public dhC;
+    IDiamondTransferType public dTTC;
+    IDiamondHolders public dHoldersC; 
+    IWETH wethC;
 
     uint256 public constant INITIAL_SUPPLY = 10_000_000 * 10**18;
     uint256 public constant TEAM_ALLOCATION = INITIAL_SUPPLY * 10 / 100;
-    uint256 public pumpingIncentivesSupply = INITIAL_SUPPLY * 90 / 100;
-    uint256 public holdersAirdropAccount = 0;
-    uint256 public liquidityProvidersAirdropAccount = 0;
-    uint256 public diamondMinersAirdropAccount = 0;
+    uint256 public incentivesSupply = INITIAL_SUPPLY * 90 / 100;
+    uint256 public holdersAirdropA = 0;
+    uint256 public liquidityPAirdropA = 0;
+    uint256 public dMinersAirdropA = 0;
     uint256 public lastDistributionTS = 0;
-    uint256 public totalPoints = 0;
     uint256 public creationTime;
-    uint256 ethMinBalance = 0;
+    uint256 public ethMinBalance = 0;
 
-    LiquidityPoolToMCAP public poolRatio;
     Status public status;
 
-    HolderInfo[] public holdersinfo;
-    mapping(address => uint256) public holderIndex;
-    mapping(address => bool) public isIndexedHolderIndex;
-
     event DiamondTransfer(TransferType indexed transferType, address sender, address indexed from, address indexed to, uint256 value);
-    event HolderAdded(uint256 hIndex, address add);
-    event TransactionAdd(uint256 hIndex, uint256 qty, uint256 dipP);
-    event TransactionRemove(uint256 hIndex, uint256 qty, bool remove);
 
-    //constructor(address _wethAddress) ERC20("Diamond", "DIAM") WETHUtils()
     constructor(address _wethAddress) ERC20("Diamond", "DIAM") Ownable()
     {
         creationTime = block.timestamp;
-        wethContract = IWETH(_wethAddress);
+        wethC = IWETH(_wethAddress);
         _mint(msg.sender, TEAM_ALLOCATION);
-        _mint(address(this), pumpingIncentivesSupply);
+        _mint(address(this), incentivesSupply);
     }
 
-    modifier onlyDiamondMiner() {
-        require(msg.sender == address(diamondMinerContract), "ODM"); //Only the DiamondMiner contract can call this function
+    modifier onlyDM() {
+        require(msg.sender == address(dmC), "ODM"); //Only the DiamondMiner contract can call this function
         _;
     }
 
-    function setMarketStatusContract(address _Contract) external onlyOwner {
-        marketStatusContract = IMarketStatus(_Contract);
+    function setMarketStatusC(address _C) external onlyOwner {
+        msC = IMarketStatus(_C);
     }
 
-    function setDiamondMinerContract(address _Contract) external onlyOwner {
-        diamondMinerContract = IDiamondMiner(_Contract);
+    function setDiamondMinerC(address _C) external onlyOwner {
+        dmC = IDiamondMiner(_C);
     }
 
-    function setDiamondHelperContract(address _Contract) external onlyOwner {
-        diamondHelperContract = IDiamondHelper(_Contract);
+    function setDiamondHelperC(address _C) external onlyOwner {
+        dhC = IDiamondHelper(_C);
     }
 
-    function setSwapHelperContract(address _Contract) external onlyOwner {
-        swapHelperContract = ISwaperHelper(_Contract);
+    function setSwapHelperC(address _C) external onlyOwner {
+        shC = ISwaperHelper(_C);
     }
 
-    function setTransferHelperContract(address _Contract) external onlyOwner {
-        diamondTransferTypeContract = IDiamondTransferType(_Contract);
+    function setTransferHelperC(address _C) external onlyOwner {
+        dTTC = IDiamondTransferType(_C);
+    }
+
+    function setDiamondHolderC(address _C) external onlyOwner {
+        dHoldersC = IDiamondHolders(_C);
     }
 
     function setETHMinBalance(uint256 _min) external onlyOwner{
@@ -89,7 +84,8 @@ contract Diamond is ERC20, Ownable {
         uint256 gasUsed = gasStart - gasleft();
         uint256 gasCost = gasUsed * tx.gasprice;
         if (address(this).balance >= gasCost) {
-            (bool success, ) = msg.sender.call{value: gasCost}("");
+            address payable ref = payable(msg.sender);
+            bool success = ref.send(gasCost);
             require(success, "GRF"); // Gas reimbursement failed
         }
     }
@@ -98,19 +94,20 @@ contract Diamond is ERC20, Ownable {
         require(block.timestamp - lastDistributionTS > 82800, "TSA"); //Too soon for Airdrop
         uint256 gasStart = gasleft();
 
-        poolRatio = marketStatusContract.getPoolToCap(address(this));
-        status = marketStatusContract.getMarketStatus(address(this));
+        //poolRatio = msC.getPoolToCap(address(this));
+        status = msC.getMarketStatus(address(this));
 
         if(status.status != 0){
-            //buyETHForMinimumBalanceRequired();
+            buyETHForMinimumBalanceRequired();
 
             if(status.status <= 2){
                 //if the market is bullish an amount of the token is sold for ETH
                 buyETHFromSupply();
                 // move the tokens from the pumpingincentives to the airdrop accounts
-                moveToLiquidityProvidersAccount();
-                moveToDiamondMinerHoldersAccount();
-                moveToHoldersAccount();
+                //moveToLiquidityProvidersAccount();
+                //moveToDiamondMinerHoldersAccount();
+                //moveToHoldersAccount();
+                moveToAirdropAccounts2();
             }
             else {
                 buyBackAndBurn();
@@ -122,57 +119,69 @@ contract Diamond is ERC20, Ownable {
         refundGas(gasStart);
     }
 
-    function buyETHForMinimumBalanceRequired() internal {
+    function buyETHForMinimumBalanceRequired() public {
         //refund the ETH balance of the contract if too low
-        if(balanceOf(address(this)) < ethMinBalance){
-            uint256 ethToBuy = ethMinBalance - address(this).balance;
-            uint256 maxTokensSpent = pumpingIncentivesSupply / 1000;
-            uint256 spent = swapHelperContract.sellForETHInETH(ethToBuy, maxTokensSpent);
-            pumpingIncentivesSupply -=spent;
+        if(balanceOf(address(this)) < ethMinBalance * 9 / 10){
+            uint256 ethToBuy = ethMinBalance - balanceOf(address(this));
+            uint256 maxTokensSpent = incentivesSupply / 1000;
+            uint256 spent = shC.sellForETHInETH(ethToBuy, maxTokensSpent);
+            incentivesSupply -=spent;
             unwrapWETH();
         }
     }
 
     function buyETHFromSupply() internal {
-        uint256 amountToSell = pumpingIncentivesSupply / 100 / diamondHelperContract.getContractAgeAirdropDivider(creationTime);
-        swapHelperContract.sellForETH(amountToSell);
-        pumpingIncentivesSupply -= amountToSell;
+        uint256 amountToSell = incentivesSupply / 100 / dhC.getCAADivider(creationTime);
+        shC.sellForETH(amountToSell);
+        incentivesSupply -= amountToSell;
     }
 
     function buyBackAndBurn() internal {
         if(address(this).balance - address(this).balance / 10 > ethMinBalance){
             //buy back with 10% of the ETH balance
             uint256 ethToBuy = address(this).balance / 10;
-            wethContract.deposit{value: ethToBuy}();
-            uint256 boughtTokens = swapHelperContract.buyBack(ethToBuy);
+            wethC.deposit{value: ethToBuy}();
+            uint256 boughtTokens = shC.buyBack(ethToBuy);
             //burn half of the token bought
             _burn(address(this), boughtTokens / 2);
-            pumpingIncentivesSupply += boughtTokens / 2;
+            incentivesSupply += boughtTokens / 2;
         }
     }
 
-    function moveToLiquidityProvidersAccount() internal{
-        uint256 incentives = diamondHelperContract.getLiquidityPIncentives(pumpingIncentivesSupply, poolRatio);
-        incentives = incentives / diamondHelperContract.getContractAgeAirdropDivider(creationTime);
-        pumpingIncentivesSupply -= incentives;
-        liquidityProvidersAirdropAccount += incentives;
+    function moveToAirdropAccounts2() internal {
+        uint256 divider = dhC.getCAADivider(creationTime);
+        uint256 incLP = dhC.getLiquidityPIncentives(incentivesSupply, address(this)) / divider;
+        uint256 incH = incentivesSupply / 100 / divider;
+        uint256 incDM = incentivesSupply / 1000 * 5 / divider;
+
+        incentivesSupply -= (incLP + incH + incDM);
+        liquidityPAirdropA += incLP;
+        holdersAirdropA += incH;
+        dMinersAirdropA += incDM;
     }
 
-    function moveToHoldersAccount() internal{
-        uint256 incentives = pumpingIncentivesSupply / 100 / diamondHelperContract.getContractAgeAirdropDivider(creationTime);
-        pumpingIncentivesSupply -= incentives;
-        holdersAirdropAccount += incentives;
-    }
+    // function moveToLiquidityProvidersAccount() internal{
+    //     uint256 inc = dhC.getLiquidityPIncentives(incentivesSupply, poolRatio);
+    //     inc = inc / dhC.getCAADivider(creationTime);
+    //     incentivesSupply -= inc;
+    //     liquidityPAirdropA += inc;
+    // }
 
-    function moveToDiamondMinerHoldersAccount() internal{
-        uint256 incentives = pumpingIncentivesSupply / 1000 * 5 / diamondHelperContract.getContractAgeAirdropDivider(creationTime);
-        pumpingIncentivesSupply -= incentives;
-        diamondMinersAirdropAccount += incentives;
-    }
+    // function moveToHoldersAccount() internal{
+    //     uint256 inc = incentivesSupply / 100 / dhC.getCAADivider(creationTime);
+    //     incentivesSupply -= inc;
+    //     holdersAirdropA += inc;
+    // }
+
+    // function moveToDiamondMinerHoldersAccount() internal{
+    //     uint256 inc = incentivesSupply / 1000 * 5 / dhC.getCAADivider(creationTime);
+    //     incentivesSupply -= inc;
+    //     dMinersAirdropA += inc;
+    // }
 
     function airdropToLiquidityProviders(address[] calldata recipients, uint256[] calldata deposits, uint256 totalDeposits, bool isLast) external onlyOwner {
         uint256 gasStart = gasleft();
-        uint256 quantity = diamondHelperContract.getAirDropSize(liquidityProvidersAirdropAccount, status);
+        uint256 quantity = dhC.getAirDropSize(liquidityPAirdropA, status);
         
         for(uint256 i = 0; i < recipients.length; i++){
             uint256 amount = quantity * deposits[i] / totalDeposits;
@@ -180,64 +189,61 @@ contract Diamond is ERC20, Ownable {
         }
 
         if(isLast){
-            liquidityProvidersAirdropAccount -= quantity;
+            liquidityPAirdropA -= quantity;
         }
         refundGas(gasStart);
     }
 
     function airDropToHolders(uint256[] calldata _recipientsIndex, uint256 _adjustedTotalPoints, bool _isLast) external onlyOwner {
-        require(_adjustedTotalPoints <= totalPoints, "ATPHTP"); //Adjusted total points cannot be higher than total points
+        require(_adjustedTotalPoints <= dHoldersC.totalPoints(), "ATPHTP"); //Adjusted total points cannot be higher than total points
         uint256 gasStart = gasleft();
-        uint256 quantity = diamondHelperContract.getAirDropSize(holdersAirdropAccount, status);
+        uint256 quantity = dhC.getAirDropSize(holdersAirdropA, status);
 
         for(uint256 i = 0; i < _recipientsIndex.length; i++){
-            HolderInfo memory holder = holdersinfo[_recipientsIndex[i]];
-            uint256 whaleRealPoints = holder.dipPoints / diamondHelperContract.applyWhaleHandicap(balanceOf(holder.add), totalSupply());
+            HolderInfo memory holder = dHoldersC.getHolderByIndex(_recipientsIndex[i]);
+            uint256 whaleRealPoints = holder.dipPoints / dhC.applyWhaleHandicap(balanceOf(holder.add), totalSupply());
             uint256 amount = quantity * (whaleRealPoints / _adjustedTotalPoints);
 
             super._transfer(address(this), holder.add, amount);
         }
 
         if(_isLast){
-            holdersAirdropAccount -= quantity;
+            holdersAirdropA -= quantity;
         }
         refundGas(gasStart);
     }
 
     function airdropToDiamondMiners(address[] calldata _recipients, bool _isLast) external onlyOwner {
         uint256 gasStart = gasleft();
-        uint256 quantity = diamondHelperContract.getAirDropSize(diamondMinersAirdropAccount, status);
+        uint256 quantity = dhC.getAirDropSize(dMinersAirdropA, status);
 
         for(uint256 i = 0; i < _recipients.length; i++){
-            uint256 dMiners = diamondMinerContract.balanceOf(_recipients[i]);
-            uint256 amount = quantity * dMiners / diamondMinerContract.totalSupply();
+            uint256 dMiners = dmC.balanceOf(_recipients[i]);
+            uint256 amount = quantity * dMiners / dmC.totalSupply();
 
             super._transfer(address(this), _recipients[i], amount);
         }
 
         if(_isLast){
-            diamondMinersAirdropAccount -= quantity;
+            dMinersAirdropA -= quantity;
         }
         refundGas(gasStart);
     }
 
 
     function _transfer(address _sender, address _recipient, uint256 _amount) internal override {
-        require(address(marketStatusContract) != address(0) && address(diamondHelperContract) != address(0) && 
-            address(diamondTransferTypeContract) != address(0), "CNI"); //Contract not initialized
+        require(address(msC) != address(0) && address(dhC) != address(0) && address(dTTC) != address(0), "CNI"); //Contract not initialized
         require(balanceOf(_sender) >= _amount, "IB"); //Balance does not cover amount + fees
 
-        TransferType tType = diamondTransferTypeContract.functionCheckType(msg.sender, _sender, _recipient);
-        //super._transfer(_sender,_recipient, _amount);
+        TransferType tType = dTTC.functionCheckType(msg.sender, _sender, _recipient);
+        status = msC.getMarketStatus(address(this));
 
         if(tType == TransferType.AddingLiquidity || tType == TransferType.RemovingLiquidity){
             super._transfer(_sender,_recipient, _amount);
         }
         else if(tType == TransferType.BuyFromLiquidityPool){
-
             //recipient is a buyer, buyer pays fee
-            status = marketStatusContract.getMarketStatus(address(this));
-            uint256 buyerFee = diamondHelperContract.getBuyerFee(_amount, status);
+            uint256 buyerFee = dhC.getBuyerFee(_amount, status);
             uint256 amountAfterFee = _amount - buyerFee;
 
             if(buyerFee > 0){
@@ -245,13 +251,12 @@ contract Diamond is ERC20, Ownable {
             }
 
             super._transfer(_sender, _recipient, amountAfterFee);
-            uint256 buyer = findOrAddHolder(_recipient);
-            addHolderTx(buyer, amountAfterFee);
+            uint256 buyer = dHoldersC.findOrAddHolder(_recipient);
+            dHoldersC.addHolderTx(buyer, amountAfterFee, status);
         }
         else if(tType == TransferType.SellToLiquidityPool){
             //sender is a seller, seller pays fee
-            status = marketStatusContract.getMarketStatus(address(this));
-            uint256 sellerFee = diamondHelperContract.getSellerFee(_amount, status);
+            uint256 sellerFee = dhC.getSellerFee(_amount, status);
             require(balanceOf(_sender) >= _amount + sellerFee, "BNCAF"); //Balance does not cover amount + fees
 
             if(sellerFee > 0){
@@ -259,13 +264,13 @@ contract Diamond is ERC20, Ownable {
             }
 
             super._transfer(_sender, _recipient, _amount);
-            uint256 seller = findOrAddHolder(_sender);
-            removeHolderTxs(seller, _amount, true);
+            uint256 seller = dHoldersC.findOrAddHolder(_sender);
+            dHoldersC.removeHolderTxs(seller, _amount, true);
         }
         else{
             //regular transfer, both sender and receipient pays fee
-            uint256 sellerFee = diamondHelperContract.getSellerFee(_amount, status);
-            uint256 buyerFee = diamondHelperContract.getBuyerFee(_amount, status);
+            uint256 sellerFee = dhC.getSellerFee(_amount, status);
+            uint256 buyerFee = dhC.getBuyerFee(_amount, status);
             uint256 totalFees = sellerFee + buyerFee;
             uint256 amountAfterFee = _amount - totalFees;
 
@@ -275,88 +280,38 @@ contract Diamond is ERC20, Ownable {
 
             super._transfer(_sender, _recipient, amountAfterFee);
 
-            uint256 seller = findOrAddHolder(_sender);
-            uint256 buyer = findOrAddHolder(_recipient);
-            removeHolderTxs(seller, _amount, true);
-            addHolderTx(buyer, amountAfterFee);
+            uint256 seller = dHoldersC.findOrAddHolder(_sender);
+            uint256 buyer = dHoldersC.findOrAddHolder(_recipient);
+            dHoldersC.removeHolderTxs(seller, _amount, true);
+            dHoldersC.addHolderTx(buyer, amountAfterFee, status);
         }
 
         emit DiamondTransfer(tType, msg.sender, _sender, _recipient, _amount);
     }
 
-    function findOrAddHolder(address _address) internal returns(uint256){
-        if(isIndexedHolderIndex[_address] == false){
-            holdersinfo.push();
-            holdersinfo[holdersinfo.length - 1].isDefined = true;
-            holdersinfo[holdersinfo.length - 1].add = _address;
-            holderIndex[_address] = holdersinfo.length - 1;
-            isIndexedHolderIndex[_address] = true;
-            emit HolderAdded(holdersinfo.length - 1, _address);
-        }
-        
-        return holderIndex[_address];
-    }
-
-    function addHolderTx(uint256 _index, uint256 _amount) internal {
-        holdersinfo[_index].txs.push();
-        uint256 dipoints = diamondHelperContract.getDipPoints(status);
-        holdersinfo[_index].txs[holdersinfo[_index].txs.length - 1].qty = _amount;
-        holdersinfo[_index].txs[holdersinfo[_index].txs.length - 1].dipPointsPerUnit = dipoints;
-        holdersinfo[_index].txs[holdersinfo[_index].txs.length - 1].ts = block.timestamp;
-        holdersinfo[_index].dipPoints += dipoints * _amount;
-        totalPoints +=  dipoints * _amount;
-        emit TransactionAdd(_index, _amount, dipoints);
-    }
-
-    function removeHolderTxs(uint256 _index, uint256 _amount, bool removeDipPoints) internal {
-        uint256 remaining = _amount;
-        if(holdersinfo[_index].isDefined){
-            for(uint256 i = 0; i < holdersinfo[_index].txs.length; i++){
-                if(holdersinfo[_index].txs[i].qty > 0){
-                    if(remaining > holdersinfo[_index].txs[i].qty){
-                        remaining -= holdersinfo[_index].txs[i].qty;
-                        if(removeDipPoints){
-                            holdersinfo[_index].dipPoints -= holdersinfo[_index].txs[i].qty * holdersinfo[_index].txs[i].dipPointsPerUnit;
-                            totalPoints -= holdersinfo[_index].txs[i].qty * holdersinfo[_index].txs[i].dipPointsPerUnit;
-                        }
-
-                        holdersinfo[_index].txs[i].qty = 0;
-                    }
-                    else{
-                        holdersinfo[_index].txs[i].qty -= remaining;
-                        if(removeDipPoints){
-                            holdersinfo[_index].dipPoints -= remaining * holdersinfo[_index].txs[i].dipPointsPerUnit;
-                            totalPoints -= remaining * holdersinfo[_index].txs[i].dipPointsPerUnit;
-                        }
-                        break;
-                    }
-                }
-            }
-                
-            emit TransactionRemove(_index, _amount, removeDipPoints);
-        }
-    }
 
     function burn(address _sender, uint256 _amount) external {
         _burn(_sender, _amount);
         //remove the empty transactions, but keeps the points
-        removeHolderTxs(holderIndex[_sender], _amount, false);
+        uint256 hIndex = dHoldersC.findOrAddHolder(_sender);
+        dHoldersC.removeHolderTxs(hIndex, _amount, false);
     }
 
-    function transferToLottery(address _from, uint256 _amount) external onlyDiamondMiner {
-        super._transfer(_from, address(diamondMinerContract), _amount);
+    function transferToLottery(address _from, uint256 _amount) external onlyDM {
+        super._transfer(_from, address(dmC), _amount);
         //remove the empty transactions, but keeps the points
-        removeHolderTxs(holderIndex[_from], _amount, false);
+        uint256 hIndex = dHoldersC.findOrAddHolder(_from);
+        dHoldersC.removeHolderTxs(hIndex, _amount, false);
     }
 
-    function transferFromLottery(address _to, uint256 _amount) external onlyDiamondMiner {
-        super._transfer(address(diamondMinerContract), _to, _amount);
+    function transferFromLottery(address _to, uint256 _amount) external onlyDM {
+        super._transfer(address(dmC), _to, _amount);
     }
 
     function unwrapWETH() internal {
-        uint256 wethBalance = wethContract.balanceOf(address(this));
+        uint256 wethBalance = wethC.balanceOf(address(this));
         if (wethBalance > 0) {
-            wethContract.withdraw(wethBalance);
+            wethC.withdraw(wethBalance);
         }
     }
 

@@ -131,15 +131,46 @@ describe("Diamond Transfers", function () {
         diamondTransferTypeContractAddress = await diamondTransferTypeContract.getAddress();
         console.log('Transfer Type Address', diamondTransferTypeContractAddress);
 
+        DiamondHoldersContract = await ethers.getContractFactory("DiamondHolders");
+        diamondHoldersContract = await DiamondHoldersContract.deploy();
+        await diamondHoldersContract.deploymentTransaction().wait();
+        diamondHoldersContractAddress = await diamondHoldersContract.getAddress();
+        console.log('Diamond Holders Address', diamondHoldersContractAddress);
+
         diamondTransferTypeContract.addSupportedPositionManagerAddresses(positionManagerAddress, 0);
         diamondTransferTypeContract.addSupportedSwapRouterAddresses(swapRouterAddress2, 0);
 
-        diamond.setMarketStatusContract(marketStatusAddress);
-        diamond.setDiamondHelperContract(diamondHelperAddress);
-        diamond.setTransferHelperContract(diamondTransferTypeContractAddress);
+        diamondHoldersContract.setDiamondHelperContract(diamondHelperAddress);
+        diamondHoldersContract.setDiamondTokenAddress(diamondAddress);
+
+        diamondHelper.setMarketStatusC(marketStatusAddress);
+
+        diamond.setMarketStatusC(marketStatusAddress);
+        diamond.setDiamondHelperC(diamondHelperAddress);
+        diamond.setTransferHelperC(diamondTransferTypeContractAddress);
+        diamond.setDiamondHolderC(diamondHoldersContractAddress);
+
+        const status = {
+            status: 1,
+            price: ethers.parseEther("1.0"),
+            drawDown1: 5,
+            drawDown7: 10,
+            drawDown30: 15,
+            timeStamp: Math.floor(Date.now() / 1000)
+        };
+
+        await marketStatus.setMarketStatus(
+            diamondAddress,
+            status.status,
+            status.price,
+            status.drawDown1,
+            status.drawDown7,
+            status.drawDown30,
+            status.timeStamp
+        );
 
 
-        
+
         const UniswapV3Factory = new ethers.Contract(uniswapV3FactoryAddress, UniswapV3FactoryABI, owner);
         
         const tx2 = await UniswapV3Factory.createPool(diamondAddress, wethAddress, 3000);
@@ -180,13 +211,10 @@ describe("Diamond Transfers", function () {
         }
 
         diamondTransferTypeContract.addSupportedPoolAddress(poolAddress, 0);
+    });
 
-      });
 
-      it("Create Pool ", async function () {
-      });
-
-      it("Mint ", async function () {
+    it("Mint ", async function () {
         const amountBase = ethers.parseUnits("0.1", 18); // 10 token0
         const amountQuote = ethers.parseUnits("0.001", 18); // 10 token1
 
@@ -329,94 +357,9 @@ describe("Diamond Transfers", function () {
         } else {
             console.log("No DiamondTransferFrom events found");
         }
-      });
+    });
 
-    //   it("Test Holder info create", async function () {
-    //     const status = {
-    //         status: 1,
-    //         price: ethers.parseEther("1.0"),
-    //         drawDown1: 0,
-    //         drawDown7: 0,
-    //         drawDown30: 0,
-    //         timeStamp: Math.floor(Date.now() / 1000)
-    //     };
-
-    //     await marketStatus.setMarketStatus(
-    //         diamondAddress,
-    //         status.status,
-    //         status.price,
-    //         status.drawDown1,
-    //         status.drawDown7,
-    //         status.drawDown30,
-    //         status.timeStamp
-    //     );
-
-    //     const amountBase2 = ethers.parseUnits("0.0000001", 18);
-    //     await diamond.approve(swapRouterAddress2, ethers.parseUnits("0.0000001", 18));
-
-    //     const testTX = await diamond.testTT(owner.address); 
-    //     console.log("testTX", testTX);
-    //     //expect(testTX).to.be.equal(0);
-
-    //     const testTX3 = await diamond.testTT(addr1.address); 
-    //     console.log("testTX3", testTX3);
-    //     //expect(testTX).to.be.equal(1);
-
-    //     const testTX2 = await diamond.testTT(owner.address); 
-    //     console.log("testTX2", testTX2);
-    //     //expect(testTX).to.be.equal(0);
-
-    //     const holdersinfo1 = await diamond.holdersinfo(0);
-    //     const holdersinfo2 = await diamond.holdersinfo(1);
-    //     console.log("holdersinfo1", holdersinfo1);
-    //     console.log("holdersinfo2", holdersinfo2);
-    //   });
-
-    // it("Test Seller Fee", async function () {
-    //     const status = {
-    //         status: 4,
-    //         price: ethers.parseEther("1.0"),
-    //         drawDown1: 0,
-    //         drawDown7: 0,
-    //         drawDown30: 0,
-    //         timeStamp: Math.floor(Date.now() / 1000)
-    //     };
-
-    //     await marketStatus.setMarketStatus(
-    //         diamondAddress,
-    //         status.status,
-    //         status.price,
-    //         status.drawDown1,
-    //         status.drawDown7,
-    //         status.drawDown30,
-    //         status.timeStamp
-    //     );
-
-    //     const amountBase2 = ethers.parseUnits("0.0000001", 18);
-    //     await diamond.approve(swapRouterAddress2, ethers.parseUnits("0.0000001", 18));
-
-    //     const testTX = await diamond.test(ethers.parseUnits("0.0000001", 18)); 
-    //     console.log("testTX", testTX);
-
-    //     const sellFee = await diamond.sellerFee();
-    //     console.log("sellFee", sellFee);
-    //     // //expect(testTX).to.be.equal(0);
-
-    //     // const testTX3 = await diamond.testTT(addr1.address); 
-    //     // console.log("testTX3", testTX3);
-    //     // //expect(testTX).to.be.equal(1);
-
-    //     // const testTX2 = await diamond.testTT(owner.address); 
-    //     // console.log("testTX2", testTX2);
-    //     // //expect(testTX).to.be.equal(0);
-
-    //     // const holdersinfo1 = await diamond.holdersinfo(0);
-    //     // const holdersinfo2 = await diamond.holdersinfo(1);
-    //     // console.log("holdersinfo1", holdersinfo1);
-    //     // console.log("holdersinfo2", holdersinfo2);
-    // });
-
-    //   it("Swap Sell 1", async function () {
+    // it("Swap Sell 1", async function () {
     //     const status = {
     //         status: 4,
     //         price: ethers.parseEther("1.0"),
@@ -453,6 +396,8 @@ describe("Diamond Transfers", function () {
         
     //     console.log("Swap parameters:", params);
 
+    //     const contractBalBefore = await diamond.balanceOf(diamondAddress);
+
     //     const balanceBeforeSwap = await diamond.balanceOf(owner.address);
     //     const balanceBeforeSwapWETH = await wethContract.balanceOf(owner.address);
     //     console.log("balanceBeforeSwap", balanceBeforeSwap);
@@ -468,7 +413,10 @@ describe("Diamond Transfers", function () {
     //     const balanceAfterSwapWETH = await wethContract.balanceOf(owner.address);
     //     console.log("balanceAfterSwapWETH", balanceAfterSwapWETH - balanceBeforeSwapWETH);
 
-    //     expect(balanceAfterSwap).to.be.equal(balanceBeforeSwap - amountBase2 - (amountBase2 / BigInt(1000) * BigInt(5)));
+    //     const contractBalAfter = await diamond.balanceOf(diamondAddress);
+    //     console.log("Contract Gain", contractBalAfter - contractBalBefore);
+
+    //     expect(balanceAfterSwap).to.be.equal(balanceBeforeSwap - amountBase2 - (amountBase2 / BigInt(1000) * BigInt(40)));
 
 
 
@@ -538,7 +486,6 @@ describe("Diamond Transfers", function () {
     //         console.log("No DiamondTransferFrom events found");
     //     }
     // });
-
 
 
     // it("Swap Buy 1", async function () {
@@ -632,43 +579,8 @@ describe("Diamond Transfers", function () {
     //     }
     // });
 
-    // it("Test Add Holder TX", async function () {
-    //     const status = {
-    //         status: 1,
-    //         price: ethers.parseEther("1.0"),
-    //         drawDown1: 0,
-    //         drawDown7: 0,
-    //         drawDown30: 0,
-    //         timeStamp: Math.floor(Date.now() / 1000)
-    //     };
 
-    //     await marketStatus.setMarketStatus(
-    //         diamondAddress,
-    //         status.status,
-    //         status.price,
-    //         status.drawDown1,
-    //         status.drawDown7,
-    //         status.drawDown30,
-    //         status.timeStamp
-    //     );
-
-    //     const amountBase2 = ethers.parseUnits("0.00000001", 18);
-
-    //     const txx = await diamond.testAddHolderTX(owner.address, amountBase2);
-    //     const txx2 = await diamond.testAddHolderTX(owner.address, ethers.parseUnits("0.000000009", 18));
-
-    //     const holderInfo = await diamond.holdersinfo(0);
-    //     console.log("Holder", holderInfo.add);
-    //     console.log("Holder", holderInfo.dipPoints);
-    //     console.log("Holder", holderInfo.isDefined);
-    //     console.log("Holder", holderInfo.txs);
-
-    //     const txxx = await diamond.getBuyTX(0, 1);
-    //     console.log("Txxx", txxx);
-    // });
-
-
-    it("Test Holder Added Event", async function () {
+    it("Swap Sell 2", async function () {
         const status = {
             status: 1,
             price: ethers.parseEther("1.0"),
@@ -689,91 +601,188 @@ describe("Diamond Transfers", function () {
         );
 
         const amountBase2 = ethers.parseUnits("0.00000001", 18);
-        const amountBase3 = ethers.parseUnits("0.000000008", 18);
-        await wethContract.approve(swapRouterAddress2, amountBase2);
+        const amountQuote = ethers.parseUnits("0.0000000001", 18);
+
+        const amountBase2_2 = ethers.parseUnits("0.0000001", 18);
+        const amountQuote_2 = ethers.parseUnits("0.000001", 18);
+        await wethContract.approve(swapRouterAddress2, amountBase2_2);
+        await diamond.approve(swapRouterAddress2, amountQuote_2);
 
         const params = {
-            tokenIn: wethAddress,
-            tokenOut: diamondAddress,
-            fee: 3000,
-            recipient: owner.address,
-            deadline: Math.floor(Date.now() / 1000) + 60 * 20,
-            amountIn: amountBase2,
-            amountOutMinimum: 0,
-            sqrtPriceLimitX96: 0,
-        };
-
-
-
-        const params3 = {
-            tokenIn: wethAddress,
-            tokenOut: diamondAddress,
-            fee: 3000,
-            recipient: owner.address,
-            deadline: Math.floor(Date.now() / 1000) + 60 * 20,
-            amountIn: amountBase3,
-            amountOutMinimum: 0,
-            sqrtPriceLimitX96: 0,
-        };
-        
-        console.log("Swap parameters:", params);
-
-        const tx2 = await swapRouterContract.exactInputSingle(params, { gasLimit: BigInt(30000000) }); 
-        const receipt = await tx2.wait();
-
-        await wethContract.approve(swapRouterAddress2, amountBase3);
-
-        const tx3 = await swapRouterContract.exactInputSingle(params3, { gasLimit: BigInt(30000000) }); 
-        const receipt4 = await tx3.wait();
-
-
-        const amountBase5 = ethers.parseUnits("0.0000001", 18);
-        await diamond.approve(swapRouterAddress2, amountBase5);
-    
-        const params5 = {
             tokenIn: diamondAddress,
             tokenOut: wethAddress,
             fee: 3000,
             recipient: owner.address,
             deadline: Math.floor(Date.now() / 1000) + 60 * 20,
-            amountIn: amountBase5,
-            amountOutMinimum: 0,
+            amountOut: amountBase2,
+            amountInMaximum: amountQuote,
             sqrtPriceLimitX96: 0,
         };
         
         console.log("Swap parameters:", params);
 
-        const tx5 = await swapRouterContract.exactInputSingle(params5, { gasLimit: BigInt(30000000) }); 
-        const receip5 = await tx5.wait();
+        //const diamondBalBefore = await diamond.balanceOf(diamondAddress);
 
+        //const balanceBeforeSwap = await diamond.balanceOf(owner.address);
+        //const balanceBeforeSwapWETH = await wethContract.balanceOf(owner.address);
+        //console.log("balanceBeforeSwap", balanceBeforeSwap);
 
-        const currentBlock = await ethers.provider.getBlock("latest");
-        const fromBlock = await getBlock24HoursAgo(currentBlock, ethers.provider); // replace with actual block number
-        const toBlock = "latest";
-        // Query past events
-        const result = await diamond.queryFilter("HolderAdded", fromBlock, toBlock);
-        const result2 = await diamond.queryFilter("TransactionAdd", fromBlock, toBlock);
-        const result3 = await diamond.queryFilter("TransactionRemove", fromBlock, toBlock);
+        const tx2 = await swapRouterContract.exactOutputSingle(params, { gasLimit: BigInt(30000000) }); 
+        const receipt = await tx2.wait();
 
-        //const result = await diamond.getPastEvents("HolderAdded", fromBlock, toBlock);
+        //const balanceAfterSwap = await diamond.balanceOf(owner.address);
+        //console.log("balanceAfterSwap", balanceAfterSwap);
+        //console.log("Change Base", balanceAfterSwap - balanceBeforeSwap);
 
-        //const result = await syncPastHolders(diamond, currentBlock);
-        console.log("result", result);
-        console.log("result2", result2);
-        console.log("result3", result3);
+        //console.log("balanceBeforeSwapWETH", balanceBeforeSwapWETH);
+        //const balanceAfterSwapWETH = await wethContract.balanceOf(owner.address);
+        //console.log("balanceAfterSwapWETH", balanceAfterSwapWETH - balanceBeforeSwapWETH);
 
-        // const amountBase2 = ethers.parseUnits("0.00000001", 18);
+        // expect(balanceAfterSwap).to.be.equal(balanceBeforeSwap - amountBase2 - (amountBase2 / BigInt(1000) * BigInt(5)));
 
-        // const txx = await diamond.testAddHolderTX(owner.address, amountBase2);
-        // const txx2 = await diamond.testAddHolderTX(owner.address, ethers.parseUnits("0.000000009", 18));
+        //const diamondBalAfter = await diamond.balanceOf(diamondAddress);
+        //console.log("Diamond diff", diamondBalAfter - diamondBalBefore);
 
-        // const holderInfo = await diamond.holdersinfo(0);
-        // console.log("Holder", holderInfo.add);
-        // console.log("Holder", holderInfo.dipPoints);
-        // console.log("Holder", holderInfo.isDefined);
-        // console.log("Holder", holderInfo.txs);
+        // // Find and log all DiamondTransfer events
+        // const iface = new ethers.Interface([
+        //     "event DiamondTransfer(uint8 indexed transferType, address sender, address indexed from, address indexed to, uint256 value)"
+        // ]);
+        // const diamondTransferTopic = ethers.id("DiamondTransfer(uint8,address,address,address,uint256)");
 
-        // const txxx = await diamond.getBuyTX(0, 1);
-        // console.log("Txxx", txxx);
+        // const diamondTransferEvents = receipt.logs.filter(log => log.topics[0] === diamondTransferTopic);
+        // if (diamondTransferEvents.length > 0) {
+        //     for (let i = 0; i < diamondTransferEvents.length; i++) {
+        //         try {
+        //             const decodedEvent = iface.decodeEventLog("DiamondTransfer", diamondTransferEvents[i].data, diamondTransferEvents[i].topics);
+        //             const transferType = decodedEvent.transferType;
+        //             const sender = decodedEvent.sender;
+        //             const from = decodedEvent.from;
+        //             const to = decodedEvent.to;
+        //             const value = decodedEvent.value;
+        //             const callerSig = decodedEvent.callerSig;
+
+        //             console.log(`DiamondTransfer event ${i + 1}:
+        //                 transferType: (${transferType})
+        //                 sender: ${sender}
+        //                 from: ${from}
+        //                 to: ${to}
+        //                 value: ${value}`);
+        //         } catch (error) {
+        //             console.error(`Error decoding DiamondTransfer event ${i + 1}:`, error);
+        //         }
+        //     }
+        // } else {
+        //     console.log("No DiamondTransfer events found");
+        // }
     });
+
+
+    // it("Test Holder Added Event", async function () {
+    //     const status = {
+    //         status: 1,
+    //         price: ethers.parseEther("1.0"),
+    //         drawDown1: 0,
+    //         drawDown7: 0,
+    //         drawDown30: 0,
+    //         timeStamp: Math.floor(Date.now() / 1000)
+    //     };
+
+    //     await marketStatus.setMarketStatus(
+    //         diamondAddress,
+    //         status.status,
+    //         status.price,
+    //         status.drawDown1,
+    //         status.drawDown7,
+    //         status.drawDown30,
+    //         status.timeStamp
+    //     );
+
+    //     const amountBase2 = ethers.parseUnits("0.00000001", 18);
+    //     const amountBase3 = ethers.parseUnits("0.000000008", 18);
+    //     await wethContract.approve(swapRouterAddress2, amountBase2);
+
+    //     const params = {
+    //         tokenIn: wethAddress,
+    //         tokenOut: diamondAddress,
+    //         fee: 3000,
+    //         recipient: owner.address,
+    //         deadline: Math.floor(Date.now() / 1000) + 60 * 20,
+    //         amountIn: amountBase2,
+    //         amountOutMinimum: 0,
+    //         sqrtPriceLimitX96: 0,
+    //     };
+
+
+
+    //     const params3 = {
+    //         tokenIn: wethAddress,
+    //         tokenOut: diamondAddress,
+    //         fee: 3000,
+    //         recipient: owner.address,
+    //         deadline: Math.floor(Date.now() / 1000) + 60 * 20,
+    //         amountIn: amountBase3,
+    //         amountOutMinimum: 0,
+    //         sqrtPriceLimitX96: 0,
+    //     };
+        
+    //     console.log("Swap parameters:", params);
+
+    //     const tx2 = await swapRouterContract.exactInputSingle(params, { gasLimit: BigInt(30000000) }); 
+    //     const receipt = await tx2.wait();
+
+    //     await wethContract.approve(swapRouterAddress2, amountBase3);
+
+    //     const tx3 = await swapRouterContract.exactInputSingle(params3, { gasLimit: BigInt(30000000) }); 
+    //     const receipt4 = await tx3.wait();
+
+
+    //     const amountBase5 = ethers.parseUnits("0.0000001", 18);
+    //     await diamond.approve(swapRouterAddress2, amountBase5);
+    
+    //     const params5 = {
+    //         tokenIn: diamondAddress,
+    //         tokenOut: wethAddress,
+    //         fee: 3000,
+    //         recipient: owner.address,
+    //         deadline: Math.floor(Date.now() / 1000) + 60 * 20,
+    //         amountIn: amountBase5,
+    //         amountOutMinimum: 0,
+    //         sqrtPriceLimitX96: 0,
+    //     };
+        
+    //     console.log("Swap parameters:", params);
+
+    //     const tx5 = await swapRouterContract.exactInputSingle(params5, { gasLimit: BigInt(30000000) }); 
+    //     const receip5 = await tx5.wait();
+
+
+    //     const currentBlock = await ethers.provider.getBlock("latest");
+    //     const fromBlock = await getBlock24HoursAgo(currentBlock, ethers.provider); // replace with actual block number
+    //     const toBlock = "latest";
+    //     // Query past events
+    //     const result = await diamondHoldersContract.queryFilter("HolderAdded", fromBlock, toBlock);
+    //     const result2 = await diamondHoldersContract.queryFilter("TransactionAdd", fromBlock, toBlock);
+    //     const result3 = await diamondHoldersContract.queryFilter("TransactionRemove", fromBlock, toBlock);
+
+    //     //const result = await diamond.getPastEvents("HolderAdded", fromBlock, toBlock);
+
+    //     //const result = await syncPastHolders(diamond, currentBlock);
+    //     console.log("result", result);
+    //     console.log("result2", result2);
+    //     console.log("result3", result3);
+
+    //     // const amountBase2 = ethers.parseUnits("0.00000001", 18);
+
+    //     // const txx = await diamond.testAddHolderTX(owner.address, amountBase2);
+    //     // const txx2 = await diamond.testAddHolderTX(owner.address, ethers.parseUnits("0.000000009", 18));
+
+    //     // const holderInfo = await diamond.holdersinfo(0);
+    //     // console.log("Holder", holderInfo.add);
+    //     // console.log("Holder", holderInfo.dipPoints);
+    //     // console.log("Holder", holderInfo.isDefined);
+    //     // console.log("Holder", holderInfo.txs);
+
+    //     // const txxx = await diamond.getBuyTX(0, 1);
+    //     // console.log("Txxx", txxx);
+    // });
 });
